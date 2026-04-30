@@ -24,6 +24,12 @@ class SearchHit:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class StoredDocument:
+    point_id: int | str
+    payload: dict[str, Any]
+
+
 class SimpleKnowledgeGraph:
     """
     Minimal directed graph for lecture demo.
@@ -115,6 +121,68 @@ def upload_documents(
         )
 
     client.upsert(collection_name=collection_name, points=points)
+
+
+def list_collection_documents(
+    client: QdrantClient,
+    collection_name: str,
+    limit: int = 100,
+) -> list[StoredDocument]:
+    records, _ = client.scroll(
+        collection_name=collection_name,
+        limit=limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    return [
+        StoredDocument(
+            point_id=record.id,
+            payload=dict(record.payload or {}),
+        )
+        for record in records
+    ]
+
+
+def print_collection_inventory(
+    title: str,
+    documents: list[StoredDocument],
+) -> None:
+    print("\n" + "=" * 100)
+    print(title)
+    print("=" * 100)
+
+    if not documents:
+        print("No documents")
+        return
+
+    for document in documents:
+        payload_without_text = {
+            key: value
+            for key, value in document.payload.items()
+            if key != "text"
+        }
+
+        print(f"\npoint_id={document.point_id}")
+        print(f"payload={payload_without_text}")
+        print(f"text={document.payload.get('text')}")
+
+
+def print_graph_inventory(
+    title: str,
+    graph: SimpleKnowledgeGraph,
+) -> None:
+    print("\n" + "=" * 100)
+    print(title)
+    print("=" * 100)
+
+    print("\nNodes:")
+    for node_id, attrs in graph.nodes.items():
+        print(f"- {node_id} | attrs={attrs}")
+
+    print("\nEdges:")
+    for source, relation, target in graph.edges:
+        print(f"- {source} -[{relation}]-> {target}")
 
 
 def search(
@@ -257,6 +325,11 @@ def run_case_9(client: QdrantClient) -> dict[str, Any]:
         documents=documents,
     )
 
+    collection_inventory = list_collection_documents(
+        client=client,
+        collection_name=TARIFF_COLLECTION,
+    )
+
     query_text = "Посоветуй тарифы, которые строго НЕ включают мобильный интернет."
 
     # Artificial query vector for deterministic demo.
@@ -292,6 +365,8 @@ def run_case_9(client: QdrantClient) -> dict[str, Any]:
 
     return {
         "query_text": query_text,
+        "collection_inventory": collection_inventory,
+        "graph": graph,
         "naive_hits": naive_hits,
         "products_with_mobile_internet": products_with_mobile_internet,
         "allowed_products": allowed_products,
@@ -422,6 +497,11 @@ def run_case_4(client: QdrantClient) -> dict[str, Any]:
         documents=documents,
     )
 
+    collection_inventory = list_collection_documents(
+        client=client,
+        collection_name=SERVICE_COLLECTION,
+    )
+
     query_text = "Какой сейчас error rate у Шлюза Госуслуг?"
 
     # Artificial query vector for deterministic demo.
@@ -452,6 +532,8 @@ def run_case_4(client: QdrantClient) -> dict[str, Any]:
 
     return {
         "query_text": query_text,
+        "collection_inventory": collection_inventory,
+        "graph": graph,
         "naive_hits": naive_hits,
         "service_ids": service_ids,
         "graph_hits": graph_hits,
@@ -467,7 +549,18 @@ def main() -> None:
     case_9 = run_case_9(client)
 
     print("CASE 9: Negation blindness")
-    print(f"Query: {case_9['query_text']}")
+
+    print_collection_inventory(
+        title="What exists in Qdrant collection: tariff documents",
+        documents=case_9["collection_inventory"],
+    )
+
+    print_graph_inventory(
+        title="What exists in Knowledge Graph: products and features",
+        graph=case_9["graph"],
+    )
+
+    print(f"\nQuery: {case_9['query_text']}")
 
     print_hits(
         title="Naive Qdrant vector search",
@@ -503,7 +596,18 @@ def main() -> None:
     case_4 = run_case_4(client)
 
     print("\n\nCASE 4: Business term vs technical service ID")
-    print(f"Query: {case_4['query_text']}")
+
+    print_collection_inventory(
+        title="What exists in Qdrant collection: service docs and logs",
+        documents=case_4["collection_inventory"],
+    )
+
+    print_graph_inventory(
+        title="What exists in Knowledge Graph: business service to technical service",
+        graph=case_4["graph"],
+    )
+
+    print(f"\nQuery: {case_4['query_text']}")
 
     print_hits(
         title="Naive Qdrant vector search",
