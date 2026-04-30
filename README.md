@@ -1,5 +1,18 @@
 # vector_graph_search
 
-Small demos that compare relation-blind vector retrieval with graph-style traversal.
+Local deterministic demo for the lecture:
 
-The new runnable example lives in [demo/README.md](/Users/newuser/Documents/OTUS/3004/vector_graph_search/demo/README.md).
+**Knowledge-base search: where vectors fail and graphs help**
+
+The project shows two retrieval failures:
+
+1. **Case 9: negation blindness**
+
+   User asks for tariffs that do **not** include mobile internet.
+
+   Naive vector search returns tariffs where mobile internet is mentioned.
+
+   Graph fixes it with set difference:
+
+   ```text
+   all products - products that include "Mobile internet"
